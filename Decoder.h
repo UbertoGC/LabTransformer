@@ -32,7 +32,7 @@ Decoder::Decoder(int* config_transformer, int* config_decoder){
     embedding = new CapaEmbedding(v_size, m_entradas, d_modelo);
     bloques = new BloqueTransformer*[n_bloques];
     for (int i = 0; i < n_bloques; i++){
-        bloques[i] = new BloqueTransformer(d_feedforward,n_cabezas,d_modelo,d_cabezas,0);
+        bloques[i] = new BloqueTransformer(d_feedforward, n_cabezas, d_modelo, 0);
     }
 }
 void Decoder::Forward(Vector2D<int>& entrada, Matriz2D<double>& salida){
@@ -45,7 +45,7 @@ void Decoder::Forward(Vector2D<int>& entrada, Matriz2D<double>& salida){
     embedding->Forward(entrada,tmp);
     //Bloques Transformer
     for (int i = 0; i < n_bloques; i++){
-        bloques[i]->Forward(tmp,salida);
+        bloques[i]->SelfForward(tmp,salida);
         tmp = salida;
     }
     //Asignacion de Salida

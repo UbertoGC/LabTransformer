@@ -23,12 +23,8 @@ CapaTokenizacion<T>::CapaTokenizacion(std::function<Vector2D<int>(const T&)>&f, 
 template <typename T>
 void CapaTokenizacion<T>::Forward(T& entrada, Vector2D<int>& salida){
     salida = this->convertir(entrada);
-    if(salida.lar() > v_size){
-        throw std::invalid_argument("Entrada muy larga");
-    }else{
-        if(tokenizacion_vector != &salida){
-            tokenizacion_vector = &salida;
-        }
+    if(tokenizacion_vector != &salida){
+        tokenizacion_vector = &salida;
     }
 }
 template <typename T>
