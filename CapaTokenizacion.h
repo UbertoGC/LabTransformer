@@ -6,22 +6,22 @@
 template <typename T>
 class CapaTokenizacion{
 private:
-    std::function<Vector2D<double>(const T&)> convertir;
-    Vector2D<double> *tokenizacion_vector;
+    std::function<Vector2D<int>(const T&)> convertir;
+    Vector2D<int> *tokenizacion_vector;
     int v_size;
 public:
-    CapaTokenizacion(std::function<Vector2D<double>(const T&)>&, int v_s);
-    void Forward(T&, Vector2D<double>&);
+    CapaTokenizacion(std::function<Vector2D<int>(const T&)>&, int v_s);
+    void Forward(T&, Vector2D<int>&);
     ~CapaTokenizacion();
 };
 template <typename T>
-CapaTokenizacion<T>::CapaTokenizacion(std::function<Vector2D<double>(const T&)>&f, int v_s){
+CapaTokenizacion<T>::CapaTokenizacion(std::function<Vector2D<int>(const T&)>&f, int v_s){
     tokenizacion_vector = nullptr;
     convertir = f;
     v_size = v_s;
 }
 template <typename T>
-void CapaTokenizacion<T>::Forward(T& entrada, Vector2D<double>& salida){
+void CapaTokenizacion<T>::Forward(T& entrada, Vector2D<int>& salida){
     salida = this->convertir(entrada);
     if(tokenizacion_vector != &salida){
         tokenizacion_vector = &salida;
