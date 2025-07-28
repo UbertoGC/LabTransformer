@@ -6,6 +6,7 @@ class Encoder{
 private:
     CapaEmbedding* embedding;
     BloqueTransformer** bloques;
+    Matriz2D<double>* salida_bloques;
     Matriz2D<double>* encoder_salida;
     int d_modelo;
     int m_entradas;
@@ -16,42 +17,55 @@ private:
     int d_cabezas;
 public:
     Encoder(int*, int*);
-    void Forward(Vector2D<int>&, Matriz2D<double>&);
+    void Forward(Vector2D<double>&, Matriz2D<double>&);
+    void Aprender(Matriz2D<double>&, double&, Matriz2D<double>&);
     ~Encoder();
 };
 Encoder::Encoder(int* config_transformer, int* config_encoder){
     d_modelo = config_transformer[0];
-    m_entradas = config_transformer[1];
-    v_size = config_transformer[2];
     n_bloques = config_encoder[0];
     n_cabezas = config_encoder[1];
     d_feedforward = config_encoder[2];
+    v_size = config_encoder[3];
+    m_entradas = config_encoder[4];
     d_cabezas = d_modelo / n_cabezas;
 
     encoder_salida = nullptr;
     embedding = new CapaEmbedding(v_size, m_entradas, d_modelo);
-    bloques = new BloqueTransformer*[n_bloques];
-    for (int i = 0; i < n_bloques; i++){
-        bloques[i] = new BloqueTransformer(d_feedforward, n_cabezas, d_modelo, 2);
+    if(n_bloques > 0){
+        bloques = new BloqueTransformer*[n_bloques];
+        salida_bloques = new Matriz2D<double>[n_bloques];
+        for (int i = 0; i < n_bloques; i++){
+            bloques[i] = new BloqueTransformer(d_feedforward, n_cabezas, d_modelo, -1);
+        }
+    }else{
+        bloques = nullptr;
+        salida_bloques = nullptr;
     }
 }
-void Encoder::Forward(Vector2D<int>& entrada, Matriz2D<double>& salida){
+void Encoder::Forward(Vector2D<double>& entrada, Matriz2D<double>& salida){
     //Limitadores
     if(entrada.lar() > m_entradas){
         std::cout<<"ERROR: entrada inadecuada para el calculo\n";
     }
-    Matriz2D<double> tmp;
-    //Embedding
-    embedding->Forward(entrada,tmp);
-    //Bloques Transformer
-    for (int i = 0; i < n_bloques; i++){
-        bloques[i]->SelfForward(tmp,salida);
-        tmp = salida;
+    if(n_bloques > 0){
+        Matriz2D<double> salida_embedding;
+        embedding->Forward(entrada,salida_embedding);
+        Matriz2D<double>* tmp = &salida_embedding;
+        for (int i = 0; i < n_bloques - 1; i++){
+            bloques[i]->SelfForward((*tmp), salida_bloques[i]);
+            tmp = &salida_bloques[i];
+        }
+        bloques[n_bloques - 1]->SelfForward((*tmp),salida);
+    }else{
+        embedding->Forward(entrada,salida);
     }
-    //Asignacion de Salida
     if(encoder_salida != &salida){
         encoder_salida = &salida;
     }
+}
+void Encoder::Aprender(Matriz2D<double>& grad_sig, double& t_a, Matriz2D<double>& gradiente_encoder){
+
 }
 Encoder::~Encoder(){
     delete embedding;

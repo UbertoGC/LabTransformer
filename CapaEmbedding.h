@@ -8,32 +8,46 @@ private:
     Matriz2D<double> posicion_embedding;
     Matriz2D<double>* embedding_matriz;
     int d_modelo;
+    bool c_vocabulario;
 public:
     CapaEmbedding(int, int, int, bool anunciar = false);
-    void Forward(Vector2D<int>&, Matriz2D<double>&);
+    void Forward(Vector2D<double>&, Matriz2D<double>&);
+    void Aprender(Matriz2D<double>&, double&, Matriz2D<double>&);
     ~CapaEmbedding();
 };
 CapaEmbedding::CapaEmbedding(int v_s, int m_e, int d_m, bool anunciar){
     d_modelo = d_m;
     embedding_matriz = nullptr;
-    pesos_embedding.ReSize(v_s, d_m);
-    pesos_embedding.Random();
+    if(v_s == 0){
+        c_vocabulario = false;   
+    }else{
+        c_vocabulario = true;
+        pesos_embedding.ReSize(v_s, d_m);
+        pesos_embedding.Random();
+    }
     posicion_embedding.ReSize(m_e, d_m);
     posicion_embedding.Random();
     if(anunciar){
         std::cout<<"Capa de Embedding creada"<<std::endl;
     }
 }
-void CapaEmbedding::Forward(Vector2D<int>& entrada, Matriz2D<double>& salida){
+void CapaEmbedding::Forward(Vector2D<double>& entrada, Matriz2D<double>& salida){
     salida.ReSize(entrada.lar(), d_modelo);
     for (int i = 0; i < entrada.lar(); i++){
-        if (entrada[i] >= 0 && entrada[i] < pesos_embedding.fil()) {
-            salida[i] << pesos_embedding[entrada[i]];
+        if(c_vocabulario){
+            if(entrada[i] >= 0 && entrada[i] < pesos_embedding.fil()){
+                salida[i] << pesos_embedding[int(entrada[i])];
+                salida[i] += posicion_embedding[i];
+            }else{
+                std::cout<<"Token ID Invalido: "<<entrada[i]<<std::endl;
+            }
+        }else{
             salida[i] += posicion_embedding[i];
-        } else {
-            std::cout<<"Token ID Invalido: " << entrada[i]<<std::endl;
         }
     }
+}
+void CapaEmbedding::Aprender(Matriz2D<double>&, double&, Matriz2D<double>&){
+    
 }
 CapaEmbedding::~CapaEmbedding(){
 }
