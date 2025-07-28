@@ -2,61 +2,60 @@
 #define __DECODER_H__
 #include "BloqueTransformer.h"
 #include "CapaEmbedding.h"
+template <typename N>
 class Decoder{
 private:
-    CapaEmbedding* embedding;
-    BloqueTransformer** bloques;
-    Matriz2D<double>* salida_bloques;
-    Matriz2D<double>* decoder_salida;
+    CapaEmbedding<N>* embedding;
+    BloqueTransformer<N>** bloques;
+    Matriz2D<N>* entradas_bloques;
+    Matriz2D<N>* decoder_salida;
     int d_modelo;
     int m_entradas;
     int v_size;
-    int n_bloques;
+    int num_bloques;
     int n_cabezas;
     int d_feedforward;
     int d_cabezas;
 public:
     Decoder(int*, int*);
-    void Forward(Vector2D<double>&, Matriz2D<double>&);
-    void Aprender(Matriz2D<double>&, double&, Matriz2D<double>&);
+    void Forward(Vector2D<int>&, Matriz2D<N>&);
+    void Aprender(Matriz2D<N>&, N&);
     ~Decoder();
 };
-Decoder::Decoder(int* config_transformer, int* config_decoder){
+template <typename N>
+Decoder<N>::Decoder(int* config_transformer, int* config_decoder){
     d_modelo = config_transformer[0];
-    n_bloques = config_decoder[0];
+    m_entradas = config_transformer[1];
+    num_bloques = config_decoder[0];
     n_cabezas = config_decoder[1];
     d_feedforward = config_decoder[2];
     v_size = config_decoder[3];
-    m_entradas = d_modelo;
     d_cabezas = d_modelo / n_cabezas;
     
     decoder_salida = nullptr;
-    embedding = new CapaEmbedding(v_size, m_entradas, d_modelo);
-    if(n_bloques > 0){
-        bloques = new BloqueTransformer*[n_bloques];
-        salida_bloques = new Matriz2D<double>[n_bloques];
-        for (int i = 0; i < n_bloques; i++){
-            bloques[i] = new BloqueTransformer(d_feedforward, n_cabezas, d_modelo, 0);
+    embedding = new CapaEmbedding<N>(v_size, m_entradas, d_modelo, true);
+    if(num_bloques > 0){
+        entradas_bloques = new Matriz2D<N>[num_bloques];
+        bloques = new BloqueTransformer<N>*[num_bloques];
+        for (int i = 0; i < num_bloques; i++){
+            bloques[i] = new BloqueTransformer<N>(d_feedforward, n_cabezas, d_modelo, -1);
         }
     }else{
         bloques = nullptr;
-        salida_bloques = nullptr;
+        entradas_bloques = nullptr;
     }
 }
-void Decoder::Forward(Vector2D<double>& entrada, Matriz2D<double>& salida){
-    //Limitadores
+template <typename N>
+void Decoder<N>::Forward(Vector2D<int>& entrada, Matriz2D<N>& salida){
     if(entrada.lar() > m_entradas){
         std::cout<<"ERROR: entrada inadecuada para el cálculo\n";
     }
-    if(n_bloques > 0){
-        Matriz2D<double> salida_embedding;
-        embedding->Forward(entrada,salida_embedding);
-        Matriz2D<double>* tmp = &salida_embedding;
-        for (int i = 0; i < n_bloques - 1; i++){
-            bloques[i]->SelfForward((*tmp), salida_bloques[i]);
-            tmp = &salida_bloques[i];
+    if(num_bloques > 0){
+        embedding->Forward(entrada, entradas_bloques[0]);
+        for (int i = 0; i < num_bloques - 1; i++){
+            bloques[i]->SelfForward(entradas_bloques[i], entradas_bloques[i+1]);
         }
-        bloques[n_bloques - 1]->SelfForward((*tmp),salida);
+        bloques[num_bloques-1]->SelfForward(entradas_bloques[num_bloques-1], salida);
     }else{
         embedding->Forward(entrada,salida);
     }
@@ -64,23 +63,25 @@ void Decoder::Forward(Vector2D<double>& entrada, Matriz2D<double>& salida){
         decoder_salida = &salida;
     }
 }
-void Decoder::Aprender(Matriz2D<double>& grad_sig, double& t_a, Matriz2D<double>& gradiente_decoder){
-    Matriz2D<double>* grad_bloques = nullptr;
-    Matriz2D<double>* tmp_grad = &grad_sig;
-    if(bloques){
-        grad_bloques = new Matriz2D<double>[n_bloques];
-        for (int i = n_bloques-1; i > -1 ; i--){
+template <typename N>
+void Decoder<N>::Aprender(Matriz2D<N>& grad_sig, N& t_a){
+    Matriz2D<N>* grad_bloques = nullptr;
+    Matriz2D<N>* tmp_grad = &grad_sig;
+    if(num_bloques > 0){
+        grad_bloques = new Matriz2D<N>[num_bloques];
+        for (int i = num_bloques-1; i > -1 ; i--){
             bloques[i]->SelfAprender((*tmp_grad), t_a, grad_bloques[i]);
             tmp_grad = &grad_bloques[i];
         }
     }
+    embedding->Aprender((*tmp_grad), t_a);
 }
-Decoder::~Decoder(){
+template <typename N>
+Decoder<N>::~Decoder(){
     delete embedding;
-    for (int i = 0; i < n_bloques; i++){
+    for (int i = 0; i < num_bloques; i++){
         delete bloques[i];
     }
     delete[] bloques;
 }
-
 #endif

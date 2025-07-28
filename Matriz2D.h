@@ -375,13 +375,13 @@ template <typename T>
 void Matriz2D<T>::SoftmaxFilasPropias() {
     #pragma omp parallel for
     for (int i = 0; i < alto; i++) {
-        double valor_maximo = m[i][0];
+        T valor_maximo = m[i][0];
         for (int j = 1; j < ancho; j++) {
             if (m[i][j] > valor_maximo) {
                 valor_maximo = m[i][j];
             }
         }
-        double suma_exponentes = 0.0;
+        T suma_exponentes = 0.0;
         for (int j = 0; j < ancho; j++) {
             m[i][j] = exp(m[i][j] - valor_maximo);
             suma_exponentes += m[i][j];
@@ -526,7 +526,8 @@ std::ostream& operator<<(std::ostream& os, const Matriz2D<U>& A){
 template <typename U>
 Matriz2D<U> operator+(const Matriz2D<U>& A, const Matriz2D<U>& B) {
     if (A.alto != B.alto || A.ancho != B.ancho) {
-        std::cerr << "Error: Las matrices no son compatibles para la suma." << std::endl;
+        std::cerr << "Error: Las matrices no son compatibles para la suma.";
+        std::cout<<A<<B;
         return Matriz2D<U>();
     }
     Matriz2D<U> C(A.alto, B.ancho);
