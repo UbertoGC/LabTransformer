@@ -23,13 +23,31 @@ public:
     void ReSize(int);
     void Softmax();
     int Max();
+    void ElementWiseCuadrado();
+    void ElementWiseRaiz();
     T& operator[](int) const;
     Vector2D<T>& operator=(const Vector2D<T>&);
     Vector2D<T>& operator<<(const Vector2D<T>&);
     Vector2D<T>& operator+=(const Vector2D<T>&);
     Vector2D<T>& operator-=(const Vector2D<T>&);
-    Vector2D<T>& operator*=(const double&);
-    Vector2D<T>& operator/=(const double&);
+    Vector2D<T>& operator*=(const T&);
+    Vector2D<T>& operator/=(const T&);
+    template <typename U>
+    friend Vector2D<U> operator+(const Vector2D<U>&, const U&);
+    template <typename U>
+    friend Vector2D<U> operator-(const Vector2D<U>&, const U&);
+    template <typename U>
+    friend Vector2D<U> operator*(const Vector2D<U>&, const U&);
+    template <typename U>
+    friend Vector2D<U> operator/(const Vector2D<U>&, const U&);
+    template <typename U>
+    friend Vector2D<U> operator+(const Vector2D<U>&, const Vector2D<U>&);
+    template <typename U>
+    friend Vector2D<U> operator-(const Vector2D<U>&, const Vector2D<U>&);
+    template <typename U>
+    friend Vector2D<U> operator*(const Vector2D<U>&, const Vector2D<U>&);
+    template <typename U>
+    friend Vector2D<U> operator/(const Vector2D<U>&, const Vector2D<U>&);
     template <typename U>
     friend Matriz2D<U> CrearMatriz(const Vector2D<U>&, const Vector2D<U>&);
     ~Vector2D();
@@ -50,15 +68,15 @@ Vector2D<T>::Vector2D(Vector2D<T>& B){
 }
 template <typename T>
 Vector2D<T>::Vector2D(int x){
-    largo = x;
+    this->largo = x;
     this->Zeros();
 }
 template <typename T>
 void Vector2D<T>::ReSize(int x){
-    if (x != largo) {
+    if (x != this->largo) {
         delete[] v;
-        largo = x;
-        v = new T[largo];
+        this->largo = x;
+        v = new T[this->largo];
     }
     this->Zeros();
 }
@@ -154,6 +172,20 @@ int Vector2D<T>::lar() const{
     return largo;
 }
 template <typename T>
+void Vector2D<T>::ElementWiseCuadrado(){
+    #pragma omp parallel for schedule(dynamic)
+    for (int i = 0; i < this->largo; i++) {
+        this->v[i] = this->v[i] * this->v[i];
+    }
+}
+template <typename T>
+void Vector2D<T>::ElementWiseRaiz(){
+    #pragma omp parallel for schedule(dynamic)
+    for (int i = 0; i < this->largo; i++) {
+        this->v[i] = T(std::sqrt(this->v[i]));
+    }
+}
+template <typename T>
 T& Vector2D<T>::operator[](int i) const{
     return v[i];
 }
@@ -203,7 +235,7 @@ Vector2D<T>& Vector2D<T>::operator-=(const Vector2D<T>& B){
     return *this;
 }
 template <typename T>
-Vector2D<T>& Vector2D<T>::operator*=(const double& scalar){
+Vector2D<T>& Vector2D<T>::operator*=(const T& scalar){
     if(std::is_same<T, int>::value == true){
         #pragma omp parallel for
         for (int i = 0; i < this->largo; i++) {
@@ -219,7 +251,7 @@ Vector2D<T>& Vector2D<T>::operator*=(const double& scalar){
     return *this;
 }
 template <typename T>
-Vector2D<T>& Vector2D<T>::operator/=(const double& scalar){
+Vector2D<T>& Vector2D<T>::operator/=(const T& scalar){
     if(std::is_same<T, int>::value == true){
         #pragma omp parallel for
         for (int i = 0; i < this->largo; i++) {
@@ -233,6 +265,99 @@ Vector2D<T>& Vector2D<T>::operator/=(const double& scalar){
         }
     }
     return *this;
+}
+template <typename U>
+Vector2D<U> operator+(const Vector2D<U>& A, const U& escala){
+    Vector2D<U> C(A.largo);
+    #pragma omp parallel for schedule(dynamic)
+    for (int i = 0; i < A.largo; i++){
+        C.v[i] = A.v[i] + escala;
+    }
+    return C;
+}
+template <typename U>
+Vector2D<U> operator-(const Vector2D<U>& A, const U& escala){
+    Vector2D<U> C(A.largo);
+    #pragma omp parallel for schedule(dynamic)
+    for (int i = 0; i < A.largo; i++){
+        C.v[i] = A.v[i] - escala;
+    }
+    return C;
+}
+template <typename U>
+Vector2D<U> operator*(const Vector2D<U>& A, const U& escala){
+    Vector2D<U> C(A.largo);
+    #pragma omp parallel for schedule(dynamic)
+    for (int i = 0; i < A.largo; i++){
+        C.v[i] = A.v[i] * escala;
+    }
+    return C;
+}
+template <typename U>
+Vector2D<U> operator/(const Vector2D<U>& A, const U& escala){
+    Vector2D<U> C(A.largo);
+    if(escala != 0){
+        #pragma omp parallel for schedule(dynamic)
+        for (int i = 0; i < A.largo; i++){
+            C.v[i] = A.v[i] / escala;
+        }
+    }
+    return C;
+}
+template <typename U>
+Vector2D<U> operator+(const Vector2D<U>& A, const Vector2D<U>& B){
+    if(A.largo != B.largo){
+        std::cerr << "Error: Los vectores no son compatibles para la suma."<<std::endl;
+        std::cerr << A.largo <<" <-> " << B.largo <<std::endl;
+        return Vector2D<U>();
+    }
+    Vector2D<U> C(A.largo);
+    #pragma omp parallel for schedule(dynamic)
+    for (int i = 0; i < A.largo; i++){
+        C.v[i] = A.v[i] + B.v[i];
+    }
+    return C;
+}
+template <typename U>
+Vector2D<U> operator-(const Vector2D<U>& A, const Vector2D<U>& B){
+    if(A.largo != B.largo){
+        std::cerr << "Error: Los vectores no son compatibles para la resta."<<std::endl;
+        return Vector2D<U>();
+    }
+    Vector2D<U> C(A.largo);
+    #pragma omp parallel for schedule(dynamic)
+    for (int i = 0; i < A.largo; i++){
+        C.v[i] = A.v[i] - B.v[i];
+    }
+    return C;
+}
+template <typename U>
+Vector2D<U> operator*(const Vector2D<U>& A, const Vector2D<U>& B){
+    if(A.largo != B.largo){
+        std::cerr << "Error: Los vectores no son compatibles para la multiplicacion."<<std::endl;
+        return Vector2D<U>();
+    }
+    Vector2D<U> C(A.largo);
+    #pragma omp parallel for schedule(dynamic)
+    for (int i = 0; i < A.largo; i++){
+        C.v[i] = A.v[i] * B.v[i];
+    }
+    return C;
+}
+template <typename U>
+Vector2D<U> operator/(const Vector2D<U>& A, const Vector2D<U>& B){
+    if(A.largo != B.largo){
+        std::cerr << "Error: Los vectores no son compatibles para la division."<<std::endl;
+        return Vector2D<U>();
+    }
+    Vector2D<U> C(A.largo);
+    #pragma omp parallel for schedule(dynamic)
+    for (int i = 0; i < A.largo; i++){
+        if(B.v[i] != 0){
+            C.v[i] = A.v[i] / B.v[i];
+        }
+    }
+    return C;
 }
 template <typename U>
 Matriz2D<U> CrearMatriz(const Vector2D<U>& A, const Vector2D<U>& B){

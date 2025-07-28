@@ -28,12 +28,25 @@ private:
     void ProyeccionFinal(Matriz2D<N>&);
     void AprenderProyeccion(Matriz2D<N>&, N&);
     void AprenderQKV(Matriz2D<N>&, int, Matriz2D<N>&, Matriz2D<N>&, Matriz2D<N>&, Matriz2D<N>&);
+    //VARIABLES ADAM
+    Matriz2D<N>* m_WQ;
+    Matriz2D<N>* v_WQ;
+    Matriz2D<N>* m_WK;
+    Matriz2D<N>* v_WK;
+    Matriz2D<N>* m_WV;
+    Matriz2D<N>* v_WV;
+    const N beta1 = 0.9;
+    const N beta2 = 0.999;
+    const N epsilon = 1e-8;
+    bool adam_inicializado = false;
+    void IniciarAdam();
+    void AdamActualizar(int,N&,Matriz2D<N>&,Matriz2D<N>&,Matriz2D<N>&, int&);
 public:
     CapaAtencion(int, int, int = 0, bool = false);
     void SelfForward(Matriz2D<N>&, Matriz2D<N>&);
     void CrossForward(Matriz2D<N>&, Matriz2D<N>&, Matriz2D<N>&);
-    void SelfAprender(Matriz2D<N>&, N&, Matriz2D<N>&);
-    void CrossAprender(Matriz2D<N>&, N&, Matriz2D<N>&, Matriz2D<N>&);
+    void SelfAprender(Matriz2D<N>&, N&, Matriz2D<N>&, int&);
+    void CrossAprender(Matriz2D<N>&, N&, Matriz2D<N>&, Matriz2D<N>&, int&);
     ~CapaAtencion();
 };
 template <typename N>
@@ -107,6 +120,50 @@ void CapaAtencion<N>::AprenderQKV(Matriz2D<N>& grad_concat, int c, Matriz2D<N>& 
     grad_K /= sqrt(d_cabeza);
 }
 template <typename N>
+void CapaAtencion<N>::IniciarAdam(){
+    if(!adam_inicializado){
+        m_WQ = new Matriz2D<N>[num_cabezas];
+        v_WQ = new Matriz2D<N>[num_cabezas];
+        m_WK = new Matriz2D<N>[num_cabezas];
+        v_WK = new Matriz2D<N>[num_cabezas];
+        m_WV = new Matriz2D<N>[num_cabezas];
+        v_WV = new Matriz2D<N>[num_cabezas];
+        for (int i = 0; i < num_cabezas; i++) {
+            m_WQ[i].ReSize(d_modelo, d_cabeza);
+            v_WQ[i].ReSize(d_modelo, d_cabeza);
+            m_WK[i].ReSize(d_modelo, d_cabeza);
+            v_WK[i].ReSize(d_modelo, d_cabeza);
+            m_WV[i].ReSize(d_modelo, d_cabeza);
+            v_WV[i].ReSize(d_modelo, d_cabeza);
+        }
+        adam_inicializado = true;
+    }
+}
+template <typename N>
+void CapaAtencion<N>::AdamActualizar(int c, N& t_a, Matriz2D<N>& grad_WQ, Matriz2D<N>& grad_WK, Matriz2D<N>& grad_WV, int& t_adam){
+    m_WQ[c] = (m_WQ[c] * beta1) + (grad_WQ * (1 - beta1));
+    grad_WQ.ElementWiseCuadrado();
+    v_WQ[c] = (v_WQ[c] * beta2) + (grad_WQ * (1 - beta2));
+    m_WK[c] = (m_WK[c] * beta1) + (grad_WK * (1 - beta1));
+    grad_WK.ElementWiseCuadrado();
+    v_WK[c] = (v_WK[c] * beta2) + (grad_WK * (1 - beta2));
+    m_WV[c] = (m_WV[c] * beta1) + (grad_WV * (1 - beta1));
+    grad_WV.ElementWiseCuadrado();
+    v_WV[c] = (v_WV[c] * beta2) + (grad_WV * (1 - beta2));
+    Matriz2D<N> m_WQ_corr = m_WQ[c] / N(1 - std::pow(beta1, t_adam));
+    Matriz2D<N> v_WQ_corr = v_WQ[c] / N(1 - std::pow(beta2, t_adam));
+    Matriz2D<N> m_WK_corr = m_WK[c] / N(1 - std::pow(beta1, t_adam));
+    Matriz2D<N> v_WK_corr = v_WK[c] / N(1 - std::pow(beta2, t_adam));
+    Matriz2D<N> m_WV_corr = m_WV[c] / N(1 - std::pow(beta1, t_adam));
+    Matriz2D<N> v_WV_corr = v_WV[c] / N(1 - std::pow(beta2, t_adam));
+    v_WQ_corr.ElementWiseRaiz();
+    capa_WQ[c] -= ((m_WQ_corr / (v_WQ_corr + epsilon)) * t_a);
+    v_WK_corr.ElementWiseRaiz();
+    capa_WK[c] -= ((m_WK_corr / (v_WK_corr + epsilon)) * t_a);
+    v_WV_corr.ElementWiseRaiz();
+    capa_WV[c] -= ((m_WV_corr / (v_WV_corr + epsilon)) * t_a);
+}
+template <typename N>
 void CapaAtencion<N>::SelfForward(Matriz2D<N>& entrada, Matriz2D<N>& salida){
     if(entrada_atencion != &entrada){
         entrada_atencion = &entrada;
@@ -150,62 +207,58 @@ void CapaAtencion<N>::CrossForward(Matriz2D<N>& decoder_entrada, Matriz2D<N>& en
     ProyeccionFinal(salida);
 }
 template <typename N>
-void CapaAtencion<N>::SelfAprender(Matriz2D<N>& grad_sig, N& t_a, Matriz2D<N>& grad_atencion){
+void CapaAtencion<N>::SelfAprender(Matriz2D<N>& grad_sig, N& t_a, Matriz2D<N>& grad_atencion, int& t_adam){
     this->AprenderProyeccion(grad_sig, t_a);
+    this->IniciarAdam();
     Matriz2D<N> grad_concat = Matmul(grad_sig, atencion_proyeccion.Transpuesta());
     grad_atencion.ReSize(entrada_atencion->fil(), d_modelo);
     grad_atencion.Zero();
     Matriz2D<N> mascara(entrada_atencion->fil(), entrada_atencion->fil(), t_mascara);
-    #pragma omp parallel for reduction(+:grad_atencion)
-    for (int c = 0; c < num_cabezas; c++) {
-        Matriz2D<N> grad_V;
-        Matriz2D<N> grad_Q;
-        Matriz2D<N> grad_K;
-        AprenderQKV(grad_concat, c, mascara, grad_Q, grad_K, grad_V);
-        Matriz2D<N> grad_cabeza_i = Matmul(grad_Q, capa_WQ[c].Transpuesta()) + Matmul(grad_K, capa_WK[c].Transpuesta()) + Matmul(grad_V, capa_WV[c].Transpuesta());
-        Matriz2D<N> grad_WQ = Matmul(entrada_atencion->Transpuesta(), grad_Q);
-        Matriz2D<N> grad_WK = Matmul(entrada_atencion->Transpuesta(), grad_K);
-        Matriz2D<N> grad_WV = Matmul(entrada_atencion->Transpuesta(), grad_V);
-        grad_WQ *= t_a;
-        grad_WK *= t_a;
-        grad_WV *= t_a;
-        capa_WQ[c] -= grad_WQ;
-        capa_WK[c] -= grad_WK;
-        capa_WV[c] -= grad_WV;
-        grad_atencion += grad_cabeza_i;
-    }
-}
-template <typename N>
-void CapaAtencion<N>::CrossAprender(Matriz2D<N>& grad_sig, N& t_a, Matriz2D<N>& grad_decoder, Matriz2D<N>& grad_encoder){
-    this->AprenderProyeccion(grad_sig, t_a);
-    Matriz2D<N> grad_concat = Matmul(grad_sig, atencion_proyeccion.Transpuesta());
-    grad_decoder.ReSize(entrada_decoder->fil(), d_modelo);
-    grad_decoder.Zero();
-    grad_encoder.ReSize(entrada_encoder->fil(), d_modelo);
-    grad_encoder.Zero();
-    Matriz2D<N> mascara(entrada_decoder->fil(), entrada_decoder->fil(), t_mascara);
+    Matriz2D<N> grad_cabeza_i[num_cabezas];
     #pragma omp parallel for
     for (int c = 0; c < num_cabezas; c++) {
         Matriz2D<N> grad_V;
         Matriz2D<N> grad_Q;
         Matriz2D<N> grad_K;
         AprenderQKV(grad_concat, c, mascara, grad_Q, grad_K, grad_V);
-        Matriz2D<N> grad_cabeza_decoder_i = Matmul(grad_Q, capa_WQ[c].Transpuesta());
-        Matriz2D<N> grad_cabeza_encoder_i = Matmul(grad_K, capa_WK[c].Transpuesta()) + Matmul(grad_V, capa_WV[c].Transpuesta());
+        grad_cabeza_i[c] = Matmul(grad_Q, capa_WQ[c].Transpuesta()) + Matmul(grad_K, capa_WK[c].Transpuesta()) + Matmul(grad_V, capa_WV[c].Transpuesta());
+        Matriz2D<N> grad_WQ = Matmul(entrada_atencion->Transpuesta(), grad_Q);
+        Matriz2D<N> grad_WK = Matmul(entrada_atencion->Transpuesta(), grad_K);
+        Matriz2D<N> grad_WV = Matmul(entrada_atencion->Transpuesta(), grad_V);
+        this->AdamActualizar(c, t_a, grad_WQ, grad_WK, grad_WV, t_adam);
+    }
+    for (int i = 0; i < num_cabezas; i++){
+        grad_atencion += grad_cabeza_i[i];
+    }
+}
+template <typename N>
+void CapaAtencion<N>::CrossAprender(Matriz2D<N>& grad_sig, N& t_a, Matriz2D<N>& grad_decoder, Matriz2D<N>& grad_encoder, int& t_adam){
+    this->AprenderProyeccion(grad_sig, t_a);
+    this->IniciarAdam();
+    Matriz2D<N> grad_concat = Matmul(grad_sig, atencion_proyeccion.Transpuesta());
+    grad_decoder.ReSize(entrada_decoder->fil(), d_modelo);
+    grad_decoder.Zero();
+    grad_encoder.ReSize(entrada_encoder->fil(), d_modelo);
+    grad_encoder.Zero();
+    Matriz2D<N> mascara(entrada_decoder->fil(), entrada_decoder->fil(), t_mascara);
+    Matriz2D<N> grad_cabeza_decoder_i[num_cabezas];
+    Matriz2D<N> grad_cabeza_encoder_i[num_cabezas];
+    #pragma omp parallel for
+    for (int c = 0; c < num_cabezas; c++) {
+        Matriz2D<N> grad_V;
+        Matriz2D<N> grad_Q;
+        Matriz2D<N> grad_K;
+        AprenderQKV(grad_concat, c, mascara, grad_Q, grad_K, grad_V);
+        grad_cabeza_decoder_i[c] = Matmul(grad_Q, capa_WQ[c].Transpuesta());
+        grad_cabeza_encoder_i[c] = Matmul(grad_K, capa_WK[c].Transpuesta()) + Matmul(grad_V, capa_WV[c].Transpuesta());
         Matriz2D<N> grad_WQ = Matmul(entrada_decoder->Transpuesta(), grad_Q);
         Matriz2D<N> grad_WK = Matmul(entrada_encoder->Transpuesta(), grad_K);
         Matriz2D<N> grad_WV = Matmul(entrada_encoder->Transpuesta(), grad_V);
-        grad_WQ *= t_a;
-        grad_WK *= t_a;
-        grad_WV *= t_a;
-        capa_WQ[c] -= grad_WQ;
-        capa_WK[c] -= grad_WK;
-        capa_WV[c] -= grad_WV;
-        #pragma omp critical
-        {
-            grad_decoder += grad_cabeza_decoder_i;
-            grad_encoder += grad_cabeza_encoder_i;
-        }
+        this->AdamActualizar(c, t_a, grad_WQ, grad_WK, grad_WV, t_adam);
+    }
+    for (int i = 0; i < num_cabezas; i++){
+        grad_decoder += grad_cabeza_decoder_i[i];
+        grad_encoder += grad_cabeza_encoder_i[i];
     }
 }
 template <typename N>
@@ -213,5 +266,11 @@ CapaAtencion<N>::~CapaAtencion(){
     delete[] capa_WQ;
     delete[] capa_WK;
     delete[] capa_WV;
+    delete[] m_WQ;
+    delete[] v_WQ;
+    delete[] m_WK;
+    delete[] v_WK;
+    delete[] m_WV;
+    delete[] v_WV;
 }
 #endif
