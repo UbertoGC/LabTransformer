@@ -38,16 +38,15 @@ private:
     const N beta1 = 0.9;
     const N beta2 = 0.999;
     const N epsilon = 1e-8;
-    int t_adam = 1;
     bool adam_inicializado = false;
     void IniciarAdam();
-    void AdamActualizar(int,N&,Matriz2D<N>&,Matriz2D<N>&,Matriz2D<N>&);
+    void AdamActualizar(int,N&,Matriz2D<N>&,Matriz2D<N>&,Matriz2D<N>&, int&);
 public:
     CapaAtencion(int, int, int = 0, bool = false);
     void SelfForward(Matriz2D<N>&, Matriz2D<N>&);
     void CrossForward(Matriz2D<N>&, Matriz2D<N>&, Matriz2D<N>&);
-    void SelfAprender(Matriz2D<N>&, N&, Matriz2D<N>&);
-    void CrossAprender(Matriz2D<N>&, N&, Matriz2D<N>&, Matriz2D<N>&);
+    void SelfAprender(Matriz2D<N>&, N&, Matriz2D<N>&, int&);
+    void CrossAprender(Matriz2D<N>&, N&, Matriz2D<N>&, Matriz2D<N>&, int&);
     ~CapaAtencion();
 };
 template <typename N>
@@ -141,7 +140,7 @@ void CapaAtencion<N>::IniciarAdam(){
     }
 }
 template <typename N>
-void CapaAtencion<N>::AdamActualizar(int c, N& t_a, Matriz2D<N>& grad_WQ, Matriz2D<N>& grad_WK, Matriz2D<N>& grad_WV){
+void CapaAtencion<N>::AdamActualizar(int c, N& t_a, Matriz2D<N>& grad_WQ, Matriz2D<N>& grad_WK, Matriz2D<N>& grad_WV, int& t_adam){
     m_WQ[c] = (m_WQ[c] * beta1) + (grad_WQ * (1 - beta1));
     grad_WQ.ElementWiseCuadrado();
     v_WQ[c] = (v_WQ[c] * beta2) + (grad_WQ * (1 - beta2));
@@ -208,7 +207,7 @@ void CapaAtencion<N>::CrossForward(Matriz2D<N>& decoder_entrada, Matriz2D<N>& en
     ProyeccionFinal(salida);
 }
 template <typename N>
-void CapaAtencion<N>::SelfAprender(Matriz2D<N>& grad_sig, N& t_a, Matriz2D<N>& grad_atencion){
+void CapaAtencion<N>::SelfAprender(Matriz2D<N>& grad_sig, N& t_a, Matriz2D<N>& grad_atencion, int& t_adam){
     this->AprenderProyeccion(grad_sig, t_a);
     this->IniciarAdam();
     Matriz2D<N> grad_concat = Matmul(grad_sig, atencion_proyeccion.Transpuesta());
@@ -226,15 +225,14 @@ void CapaAtencion<N>::SelfAprender(Matriz2D<N>& grad_sig, N& t_a, Matriz2D<N>& g
         Matriz2D<N> grad_WQ = Matmul(entrada_atencion->Transpuesta(), grad_Q);
         Matriz2D<N> grad_WK = Matmul(entrada_atencion->Transpuesta(), grad_K);
         Matriz2D<N> grad_WV = Matmul(entrada_atencion->Transpuesta(), grad_V);
-        this->AdamActualizar(c, t_a, grad_WQ, grad_WK, grad_WV);
+        this->AdamActualizar(c, t_a, grad_WQ, grad_WK, grad_WV, t_adam);
     }
     for (int i = 0; i < num_cabezas; i++){
         grad_atencion += grad_cabeza_i[i];
     }
-    t_adam++;
 }
 template <typename N>
-void CapaAtencion<N>::CrossAprender(Matriz2D<N>& grad_sig, N& t_a, Matriz2D<N>& grad_decoder, Matriz2D<N>& grad_encoder){
+void CapaAtencion<N>::CrossAprender(Matriz2D<N>& grad_sig, N& t_a, Matriz2D<N>& grad_decoder, Matriz2D<N>& grad_encoder, int& t_adam){
     this->AprenderProyeccion(grad_sig, t_a);
     this->IniciarAdam();
     Matriz2D<N> grad_concat = Matmul(grad_sig, atencion_proyeccion.Transpuesta());
@@ -256,7 +254,7 @@ void CapaAtencion<N>::CrossAprender(Matriz2D<N>& grad_sig, N& t_a, Matriz2D<N>& 
         Matriz2D<N> grad_WQ = Matmul(entrada_decoder->Transpuesta(), grad_Q);
         Matriz2D<N> grad_WK = Matmul(entrada_encoder->Transpuesta(), grad_K);
         Matriz2D<N> grad_WV = Matmul(entrada_encoder->Transpuesta(), grad_V);
-        this->AdamActualizar(c, t_a, grad_WQ, grad_WK, grad_WV);
+        this->AdamActualizar(c, t_a, grad_WQ, grad_WK, grad_WV, t_adam);
     }
     for (int i = 0; i < num_cabezas; i++){
         grad_decoder += grad_cabeza_decoder_i[i];

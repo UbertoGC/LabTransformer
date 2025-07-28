@@ -18,14 +18,13 @@ private:
     Matriz2D<N> m_p1, v_p1, m_p2, v_p2;
     Vector2D<N> m_b1, v_b1, m_b2, v_b2;
     N beta1 = 0.9, beta2 = 0.999, epsilon = 1e-8;
-    int t_adam = 1;
     bool adam_inicializado = false;
     void IniciarAdam(Vector2D<N>&, Vector2D<N>&);
-    void AdamActualizar(N&, Matriz2D<N>&, Matriz2D<N>&, Vector2D<N>&, Vector2D<N>&);
+    void AdamActualizar(N&, Matriz2D<N>&, Matriz2D<N>&, Vector2D<N>&, Vector2D<N>&, int&);
 public:
     CapaFeedForward(int, int, bool = false);
     void Forward(Matriz2D<N>&, Matriz2D<N>&);
-    void Aprender(Matriz2D<N>&, N&, Matriz2D<N>&);
+    void Aprender(Matriz2D<N>&, N&, Matriz2D<N>&, int&);
     ~CapaFeedForward();
 };
 template <typename N>
@@ -59,7 +58,7 @@ void CapaFeedForward<N>::IniciarAdam(Vector2D<N>& grad_bias1, Vector2D<N>& grad_
     }
 }
 template <typename N>
-void CapaFeedForward<N>::AdamActualizar(N& t_a, Matriz2D<N>& gradiente_pesos1, Matriz2D<N>& gradiente_pesos2, Vector2D<N>& grad_bias1, Vector2D<N>& grad_bias2){
+void CapaFeedForward<N>::AdamActualizar(N& t_a, Matriz2D<N>& gradiente_pesos1, Matriz2D<N>& gradiente_pesos2, Vector2D<N>& grad_bias1, Vector2D<N>& grad_bias2, int& t_adam){
     m_p1 = (m_p1 * beta1) + (gradiente_pesos1 * (1 - beta1));
     gradiente_pesos1.ElementWiseCuadrado();
     v_p1 = (v_p1 * beta2) + (gradiente_pesos1 * (1 - beta2));
@@ -107,7 +106,7 @@ void CapaFeedForward<N>::Forward(Matriz2D<N>& entrada, Matriz2D<N>& salida){
     }
 }
 template <typename N>
-void CapaFeedForward<N>::Aprender(Matriz2D<N>& grad_sig, N& t_a, Matriz2D<N>& grad_feedforward){
+void CapaFeedForward<N>::Aprender(Matriz2D<N>& grad_sig, N& t_a, Matriz2D<N>& grad_feedforward, int& t_adam){
     Matriz2D<N> grad_salida = Matmul(grad_sig, pesos2.Transpuesta());
     Matriz2D<N> gradiente_pesos2 = Matmul(pos_relu.Transpuesta(), grad_sig);
     Vector2D<N> grad_bias2 = SumarFilas(grad_sig);
@@ -116,8 +115,7 @@ void CapaFeedForward<N>::Aprender(Matriz2D<N>& grad_sig, N& t_a, Matriz2D<N>& gr
     Vector2D<N> grad_bias1 = SumarFilas(grad_pos_relu);
     grad_feedforward = Matmul(grad_pos_relu, pesos1.Transpuesta());
     this->IniciarAdam(grad_bias1, grad_bias2);
-    this->AdamActualizar(t_a, gradiente_pesos1, gradiente_pesos2, grad_bias1, grad_bias2);
-    t_adam++;
+    this->AdamActualizar(t_a, gradiente_pesos1, gradiente_pesos2, grad_bias1, grad_bias2, t_adam);
 }
 template <typename N>
 CapaFeedForward<N>::~CapaFeedForward(){

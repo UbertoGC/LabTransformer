@@ -19,7 +19,7 @@ private:
 public:
     Decoder(int*, int*);
     void Forward(Vector2D<int>&, Matriz2D<N>&);
-    void Aprender(Matriz2D<N>&, N&);
+    void Aprender(Matriz2D<N>&, N&, int&);
     ~Decoder();
 };
 template <typename N>
@@ -64,17 +64,17 @@ void Decoder<N>::Forward(Vector2D<int>& entrada, Matriz2D<N>& salida){
     }
 }
 template <typename N>
-void Decoder<N>::Aprender(Matriz2D<N>& grad_sig, N& t_a){
+void Decoder<N>::Aprender(Matriz2D<N>& grad_sig, N& t_a, int& t_adam){
     Matriz2D<N>* grad_bloques = nullptr;
     Matriz2D<N>* tmp_grad = &grad_sig;
     if(num_bloques > 0){
         grad_bloques = new Matriz2D<N>[num_bloques];
         for (int i = num_bloques-1; i > -1 ; i--){
-            bloques[i]->SelfAprender((*tmp_grad), t_a, grad_bloques[i]);
+            bloques[i]->SelfAprender((*tmp_grad), t_a, grad_bloques[i], t_adam);
             tmp_grad = &grad_bloques[i];
         }
     }
-    embedding->Aprender((*tmp_grad), t_a);
+    embedding->Aprender((*tmp_grad), t_a, t_adam);
 }
 template <typename N>
 Decoder<N>::~Decoder(){

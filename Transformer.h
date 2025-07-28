@@ -28,6 +28,8 @@ private:
     int d_modelo;
     int m_salidas;
     N t_aprendisaje;
+    //VARIBLES ADAM
+    int t_adam;
 public:
     Transformer(std::function<Vector2D<int>(const T&)>, N, int*, int*, int*, int*, int*);
     void Aprendizaje(T& entrada, int clase_resultado);
@@ -69,6 +71,7 @@ Transformer<T,N>::Transformer(std::function<Vector2D<int>(const T&)> conversor, 
     }
     std::cout<<"Creando Linearizador...\n";
     linearizador = new CapaLinear<N>(d_modelo, m_salidas);
+    t_adam = 1;
     std::cout<<"Finalizado Construccion de Transformer\n";
 }
 template <typename T, typename N>
@@ -92,23 +95,23 @@ void Transformer<T,N>::Aprendizaje(T& entrada, int clase_resultado){
         Vector2D<N> gradiente_softmax = salida_softmax;
         gradiente_softmax[clase_resultado] -= 1.0;
         Matriz2D<N> gradiente_linear;
-        this->linearizador->Aprender(gradiente_softmax, t_aprendisaje, gradiente_linear);
+        this->linearizador->Aprender(gradiente_softmax, t_aprendisaje, gradiente_linear, t_adam);
+        
         Matriz2D<N>* grad_bloques = nullptr;
         Matriz2D<N>* tmp_grad = &gradiente_linear;
         if(bloques){
             grad_bloques = new Matriz2D<N>[num_bloques];
             for (int i = num_bloques-1; i > -1 ; i--){
-                bloques[i]->SelfAprender((*tmp_grad), t_aprendisaje, grad_bloques[i]);
+                bloques[i]->SelfAprender((*tmp_grad), t_aprendisaje, grad_bloques[i], t_adam);
                 tmp_grad = &grad_bloques[i];
             }
         }
         Matriz2D<N> gradiente_uni_de;
         Matriz2D<N> gradiente_uni_en;
-        unificador->CrossAprender((*tmp_grad), t_aprendisaje, gradiente_uni_de, gradiente_uni_en);
-        
-        encoder->Aprender(gradiente_uni_en, t_aprendisaje);
-        decoder->Aprender(gradiente_uni_de, t_aprendisaje);
-        return;
+        unificador->CrossAprender((*tmp_grad), t_aprendisaje, gradiente_uni_de, gradiente_uni_en, t_adam);
+        encoder->Aprender(gradiente_uni_en, t_aprendisaje, t_adam);
+        decoder->Aprender(gradiente_uni_de, t_aprendisaje, t_adam);
+        t_adam++;
     }
 }
 template <typename T, typename N>

@@ -17,14 +17,13 @@ private:
     N beta1 = 0.9;
     N beta2 = 0.999;
     N eps = 1e-8;
-    int t_adam = 1;
     bool adam_inicializado = false;
     void IniciarAdam();
-    void AdamActualizar(N&, Matriz2D<N>&, Vector2D<N>&);
+    void AdamActualizar(N&, Matriz2D<N>&, Vector2D<N>&, int&);
 public:
     CapaLinear(int, int, bool = false);
     void Forward(Matriz2D<N>&, Vector2D<N>&);
-    void Aprender(Vector2D<N>&, N&, Matriz2D<N>&);
+    void Aprender(Vector2D<N>&, N&, Matriz2D<N>&, int&);
     ~CapaLinear();
 };
 template <typename N>
@@ -51,7 +50,7 @@ void CapaLinear<N>::IniciarAdam(){
     }
 }
 template <typename N>
-void CapaLinear<N>::AdamActualizar(N& t_a, Matriz2D<N>& gradiente_pesos, Vector2D<N>& gradiente_softmax){
+void CapaLinear<N>::AdamActualizar(N& t_a, Matriz2D<N>& gradiente_pesos, Vector2D<N>& gradiente_softmax, int& t_adam){
     m_pesos = (m_pesos * beta1) + (gradiente_pesos * (1 - beta1));
     gradiente_pesos.ElementWiseCuadrado();
     v_pesos = (v_pesos * beta2) + (gradiente_pesos * (1 - beta2));
@@ -91,7 +90,7 @@ void CapaLinear<N>::Forward(Matriz2D<N>& entrada, Vector2D<N>& salida){
     }
 }
 template <typename N>
-void CapaLinear<N>::Aprender(Vector2D<N>& gradiente_softmax, N& t_a, Matriz2D<N>& gradiente_linear){
+void CapaLinear<N>::Aprender(Vector2D<N>& gradiente_softmax, N& t_a, Matriz2D<N>& gradiente_linear, int& t_adam){
     Matriz2D<N> gradiente_pesos = Matmul(promedio.Transpuesta(), gradiente_softmax);
     Matriz2D<N> gradiente_promedio = Matmul(gradiente_softmax, pesos.Transpuesta());
     gradiente_linear.ReSize(entrada_puntero->fil(), pesos.fil());
@@ -100,8 +99,7 @@ void CapaLinear<N>::Aprender(Vector2D<N>& gradiente_softmax, N& t_a, Matriz2D<N>
     }
     gradiente_linear /= entrada_puntero->fil();
     this->IniciarAdam();
-    this->AdamActualizar(t_a, gradiente_pesos, gradiente_softmax);
-    t_adam++;
+    this->AdamActualizar(t_a, gradiente_pesos, gradiente_softmax, t_adam);
 }
 template <typename N>
 CapaLinear<N>::~CapaLinear(){
