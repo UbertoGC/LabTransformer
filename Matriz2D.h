@@ -29,6 +29,8 @@ public:
     void CopiarMatrizDatos(int, int, const Matriz2D<T>&);
     int fil() const;
     int col() const;
+    void ElementWiseCuadrado();
+    void ElementWiseRaiz();
     Vector2D<T>& operator[](int) const;
     Matriz2D<T>& operator=(const Matriz2D<T>&);
     Matriz2D<T>& operator*=(const T&);
@@ -40,9 +42,21 @@ public:
     template <typename U>
     friend std::ostream& operator<<(std::ostream&, const Matriz2D<U>&);
     template <typename U>
+    friend Matriz2D<U> operator+(const Matriz2D<U>&, const U&);
+    template <typename U>
+    friend Matriz2D<U> operator-(const Matriz2D<U>&, const U&);
+    template <typename U>
+    friend Matriz2D<U> operator*(const Matriz2D<U>&, const U&);
+    template <typename U>
+    friend Matriz2D<U> operator/(const Matriz2D<U>&, const U&);
+    template <typename U>
     friend Matriz2D<U> operator+(const Matriz2D<U>&, const Matriz2D<U>&);
     template <typename U>
+    friend Matriz2D<U> operator-(const Matriz2D<U>&, const Matriz2D<U>&);
+    template <typename U>
     friend Matriz2D<U> operator*(const Matriz2D<U>&, const Matriz2D<U>&);
+    template <typename U>
+    friend Matriz2D<U> operator/(const Matriz2D<U>&, const Matriz2D<U>&);
     template <typename U>
     friend Matriz2D<U> operator*(const Vector2D<U>&, const Matriz2D<U>&);
     template <typename U>
@@ -414,6 +428,24 @@ int Matriz2D<T>::col()const{
     return ancho;
 }
 template <typename T>
+void Matriz2D<T>::ElementWiseCuadrado(){
+    #pragma omp parallel for collapse(2) schedule(dynamic)
+    for (int i = 0; i < alto; i++) {
+        for (int j = 0; j < ancho; ++j){
+            m[i][j] = m[i][j] * m[i][j];
+        }
+    }
+}
+template <typename T>
+void Matriz2D<T>::ElementWiseRaiz(){
+    #pragma omp parallel for collapse(2) schedule(dynamic)
+    for (int i = 0; i < alto; i++) {
+        for (int j = 0; j < ancho; ++j){
+            m[i][j] = T(std::sqrt(m[i][j]));
+        }
+    }
+}
+template <typename T>
 Vector2D<T>& Matriz2D<T>::operator[](int i)const{
     return vectores[i];
 }
@@ -524,17 +556,75 @@ std::ostream& operator<<(std::ostream& os, const Matriz2D<U>& A){
     return os;
 }
 template <typename U>
+Matriz2D<U> operator+(const Matriz2D<U>& A, const U& escala){
+    Matriz2D<U> C(A.alto, A.ancho);
+    #pragma omp parallel for collapse(2) schedule(dynamic)
+    for (int i = 0; i < A.alto; i++){
+        for (int j = 0; j < A.ancho; j++){
+            C.m[i][j] = A.m[i][j] + escala;
+        }
+    }
+    return C;
+}
+template <typename U>
+Matriz2D<U> operator-(const Matriz2D<U>& A, const U& escala){
+    Matriz2D<U> C(A.alto, A.ancho);
+    #pragma omp parallel for collapse(2) schedule(dynamic)
+    for (int i = 0; i < A.alto; i++){
+        for (int j = 0; j < A.ancho; j++){
+            C.m[i][j] = A.m[i][j] - escala;
+        }
+    }
+    return C;
+}
+template <typename U>
+Matriz2D<U> operator*(const Matriz2D<U>& A, const U& escala){
+    Matriz2D<U> C(A.alto, A.ancho);
+    #pragma omp parallel for collapse(2) schedule(dynamic)
+    for (int i = 0; i < A.alto; i++){
+        for (int j = 0; j < A.ancho; j++){
+            C.m[i][j] = A.m[i][j] * escala;
+        }
+    }
+    return C;
+}
+template <typename U>
+Matriz2D<U> operator/(const Matriz2D<U>& A, const U& escala){
+    Matriz2D<U> C(A.alto, A.ancho);
+    #pragma omp parallel for collapse(2) schedule(dynamic)
+    for (int i = 0; i < A.alto; i++){
+        for (int j = 0; j < A.ancho; j++){
+            C.m[i][j] = A.m[i][j] / escala;
+        }
+    }
+    return C;
+}
+template <typename U>
 Matriz2D<U> operator+(const Matriz2D<U>& A, const Matriz2D<U>& B) {
     if (A.alto != B.alto || A.ancho != B.ancho) {
-        std::cerr << "Error: Las matrices no son compatibles para la suma.";
-        std::cout<<A<<B;
+        std::cerr << "Error: Las matrices no son compatibles para la suma."<<std::endl;;
         return Matriz2D<U>();
     }
     Matriz2D<U> C(A.alto, B.ancho);
     #pragma omp parallel for collapse(2) schedule(dynamic)
-    for (int i = 0; i < A.alto; i++) {
-        for (int j = 0; j < B.ancho; j++) {
+    for (int i = 0; i < A.alto; i++){
+        for (int j = 0; j < B.ancho; j++){
             C.m[i][j] = A.m[i][j] + B.m[i][j];
+        }
+    }
+    return C;
+}
+template <typename U>
+Matriz2D<U> operator-(const Matriz2D<U>& A, const Matriz2D<U>& B) {
+    if (A.alto != B.alto || A.ancho != B.ancho) {
+        std::cerr << "Error: Las matrices no son compatibles para la resta."<<std::endl;;
+        return Matriz2D<U>();
+    }
+    Matriz2D<U> C(A.alto, B.ancho);
+    #pragma omp parallel for collapse(2) schedule(dynamic)
+    for (int i = 0; i < A.alto; i++){
+        for (int j = 0; j < B.ancho; j++){
+            C.m[i][j] = A.m[i][j] - B.m[i][j];
         }
     }
     return C;
@@ -550,6 +640,23 @@ Matriz2D<U> operator*(const Matriz2D<U>& A, const Matriz2D<U>& B) {
     for (int i = 0; i < A.alto; i++) {
         for (int j = 0; j < B.ancho; j++) {
             C.m[i][j] = A.m[i][j] * B.m[i][j];
+        }
+    }
+    return C;
+}
+template <typename U>
+Matriz2D<U> operator/(const Matriz2D<U>& A, const Matriz2D<U>& B) {
+    if (A.alto != B.alto || A.ancho != B.ancho) {
+        std::cerr << "Error: Las matrices no son compatibles para la division."<<std::endl;;
+        return Matriz2D<U>();
+    }
+    Matriz2D<U> C(A.alto, B.ancho);
+    #pragma omp parallel for collapse(2) schedule(dynamic)
+    for (int i = 0; i < A.alto; i++){
+        for (int j = 0; j < B.ancho; j++){
+            if(B.m[i][j] != 0){
+                C.m[i][j] = A.m[i][j] / B.m[i][j];
+            }
         }
     }
     return C;
@@ -771,6 +878,7 @@ Matriz2D<U> DerNormalizarFilas(const Matriz2D<U>& A, const Matriz2D<U>& grad_sig
     }
     return C;
 }
+
 template <typename T>
 Matriz2D<T>::~Matriz2D() {
     for (int i = 0; i < alto; i++){

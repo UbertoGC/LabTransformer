@@ -50,7 +50,7 @@ void leer_labels(string dir, vector<int>& clases){
 void Probar(Transformer<Mat, float>& transformer){
     int acertados = 0;
     int fallados = 0;
-    int limit_val = 1000;
+    int limit_val = 150;
     vector<int> clase_val(limit_val);
     vector<Mat> img_val(limit_val);
     string val_lab_dir = "DataTransformer/val_labels/val_labels.txt";
@@ -74,7 +74,7 @@ void Probar(Transformer<Mat, float>& transformer){
 int main(){
     int d_modelo = 32;
     int m_salidas = 8;
-    float t_aprendisaje = 0.005;
+    float t_aprendisaje = 0.001f;
     //{dimension del modelo, maxima salida, tasa de aprendisaje}
     int config_transformer[2] = {d_modelo, m_salidas};
     //{numero de cabezas, dimension del feedforward}
@@ -89,8 +89,8 @@ int main(){
     
     Transformer<Mat, float> transformer(conversor_img_vec, t_aprendisaje, config_transformer, config_unificador, config_bloques, config_decoder, config_encoder);
     //Maximo 11959
-    int epocas = 30;
-    int limit_train = 100;
+    int epocas = 20;
+    int limit_train = 150;
     int clock = limit_train/10;
     vector<int> clase_train(limit_train);
     vector<Mat> img_train(limit_train);
@@ -98,9 +98,10 @@ int main(){
     string train_imgdir = "DataTransformer/train_images/train_images_";
     leer_labels(train_lab_dir, clase_train);
     leer_img(train_imgdir, img_train);
+    Probar(transformer);
     cout<<"Aprendiendo ...\n";
     for (int e = 0; e < epocas; e++){
-        cout<<"Epoca: "<<e<<" ";
+        cout<<"Epoca: "<<e+1<<" ";
         for (int i = 0; i < limit_train; i++){
             transformer.Aprendizaje(img_train[i], clase_train[i]);
             if(i % clock == 0){
