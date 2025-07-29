@@ -131,6 +131,25 @@ public:
     // =====================
     // Funciones CPU
     // =====================
+    void DerSoftmaxFilas(const Matriz2D& grad_sig, Matriz2D& output) const {
+        if (grad_sig.fil() != filas || grad_sig.col() != columnas || 
+            output.fil() != filas || output.col() != columnas) {
+            throw std::runtime_error("Dimensiones incompatibles en DerSoftmaxFilas");
+        }
+
+        #pragma omp parallel for
+        for (int i = 0; i < filas; i++) {
+            float sum = 0.0f;
+            // 1. Calcular sum(grad_sig * softmax_output)
+            for (int j = 0; j < columnas; j++) {
+                sum += grad_sig(i, j) * (*this)(i, j);
+            }
+            // 2. Calcular derivada = y * (dy - sum)
+            for (int j = 0; j < columnas; j++) {
+                output(i, j) = (*this)(i, j) * (grad_sig(i, j) - sum);
+            }
+        }
+    }
     void Inicializar(int filas, int columnas) {
         this->filas = filas;
         this->columnas = columnas;
@@ -250,7 +269,26 @@ public:
             }
         }
     }
-    
+    void DerRELU_CPU(const Matriz2D& input, Matriz2D& output) const {
+        #pragma omp parallel for
+        for (int i = 0; i < filas * columnas; i++) {
+            output.datos[i] = (input.datos[i] > 0.0f) ? 1.0f : 0.0f;
+        }
+    }
+    // CPU (OpenMP)
+    void ElementWiseCuadradoCPU() {
+        #pragma omp parallel for
+        for (int i = 0; i < filas * columnas; i++) {
+            datos[i] = datos[i] * datos[i];
+        }
+    }
+    // CPU (OpenMP)
+    void ElementWiseRaizCPU() {
+        #pragma omp parallel for
+        for (int i = 0; i < filas * columnas; i++) {
+            datos[i] = sqrtf(datos[i]);
+        }
+    }
     // =====================
     // Funciones CUDA
     // =====================
@@ -262,6 +300,10 @@ public:
     void Matriz2D::SumarFilaCUDA(const Matriz2D& fila);//Sumar una sola fila (vector) a todas las filas de la matriz. bias o braodcasting
     void SumarMatrizCUDA(const Matriz2D& otra);//Sumar dos matrices completas elemento por elemento (misma dimensión).
     void Matriz2D::EscalarCUDA(float escalar);//Matriz por un escalar (multiplicación por un escalar).
+    void Matriz2D::DerSoftmaxFilasCUDA(const Matriz2D& grad_sig, Matriz2D& output);// Derivada de softmax por filas, grad_sig es la matriz de gradiente de salida y output es donde se guarda el resultado.
+    void Matriz2D::DerRELU_CUDA(const Matriz2D& input, Matriz2D& output);// Derivada de ReLU, input es la matriz de entrada y output es donde se guarda el resultado.
+    void Matriz2D::ElementWiseCuadradoCUDA();// Elevar al cuadrado cada elemento de la matriz.
+    void Matriz2D::ElementWiseRaizCUDA();// Calcular la raíz cuadrada de cada elemento de la matriz.
     // =====================
     // Métodos de acceso
     // =====================

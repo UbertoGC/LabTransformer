@@ -2,6 +2,7 @@
 #include <chrono>
 #include <cmath>
 #include "../fun/Matriz2D.h"
+#include "../fun/CapaTokenizacion.h"
 
 using namespace std;
 
@@ -129,5 +130,23 @@ int main() {
     }
 
     cout << "=== PRUEBAS COMPLETADAS ===\n";
+
+
+
+    // Prueba de CapaTokenizacion
+    cout << "=== PRUEBA DE CapaTokenizacion ===\n\n";
+    const char* texto = "Hola GPU";
+    int len = strlen(texto);
+
+    // Crear capa con tamaño máximo 1x256 y GPU activado
+    CapaTokenizacion capa(1, 256, true);
+
+    Matriz2D tokens;
+    capa.Forward(texto, len, tokens);
+
+    std::cout << "Tokens generados:\n";
+    for (int i = 0; i < tokens.col(); ++i) {
+        std::cout << static_cast<char>(tokens(0, i)) << " ";
+    }
     return 0;
 }
