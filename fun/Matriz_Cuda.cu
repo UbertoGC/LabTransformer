@@ -378,3 +378,118 @@ void Matriz2D::EscalarCUDA(float escalar) {
     cudaMemcpy(datos, d_datos, total * sizeof(float), cudaMemcpyDeviceToHost);
     cudaFree(d_datos);
 }
+__global__ void DerSoftmaxFilasKernel(const float* softmax_output, const float* grad_sig, 
+                                     float* output, int filas, int columnas) {
+    int i = blockIdx.x;
+    int j = threadIdx.x;
+    
+    if (i < filas && j < columnas) {
+        // Suma reducida (para el término sum(grad_sig * softmax_output))
+        __shared__ float sum_shared;
+        if (threadIdx.x == 0) {
+            sum_shared = 0.0f;
+            for (int k = 0; k < columnas; k++) {
+                sum_shared += grad_sig[i * columnas + k] * softmax_output[i * columnas + k];
+            }
+        }
+        __syncthreads();
+
+        output[i * columnas + j] = softmax_output[i * columnas + j] * 
+                                  (grad_sig[i * columnas + j] - sum_shared);
+    }
+}
+
+void Matriz2D::DerSoftmaxFilasCUDA(const Matriz2D& grad_sig, Matriz2D& output) {
+    float *d_softmax, *d_grad, *d_output;
+    CUDA_CHECK(cudaMalloc(&d_softmax, filas * columnas * sizeof(float)));
+    CUDA_CHECK(cudaMalloc(&d_grad, filas * columnas * sizeof(float)));
+    CUDA_CHECK(cudaMalloc(&d_output, filas * columnas * sizeof(float)));
+
+    CUDA_CHECK(cudaMemcpy(d_softmax, datos, filas * columnas * sizeof(float), cudaMemcpyHostToDevice));
+    CUDA_CHECK(cudaMemcpy(d_grad, grad_sig.Datos(), filas * columnas * sizeof(float), cudaMemcpyHostToDevice));
+
+    dim3 blocks(filas);
+    dim3 threads(columnas);
+    DerSoftmaxFilasKernel<<<blocks, threads>>>(d_softmax, d_grad, d_output, filas, columnas);
+
+    CUDA_CHECK(cudaMemcpy(output.Datos(), d_output, filas * columnas * sizeof(float), cudaMemcpyDeviceToHost));
+    CUDA_CHECK(cudaFree(d_softmax));
+    CUDA_CHECK(cudaFree(d_grad));
+    CUDA_CHECK(cudaFree(d_output));
+}
+
+__global__ void DerRELUKernel(const float* input, float* output, int size) {
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < size) {
+        output[idx] = (input[idx] > 0.0f) ? 1.0f : 0.0f;
+    }
+}
+
+void Matriz2D::DerRELU_CUDA(const Matriz2D& input, Matriz2D& output) {
+    float *d_input, *d_output;
+    int size = filas * columnas;
+    CUDA_CHECK(cudaMalloc(&d_input, size * sizeof(float)));
+    CUDA_CHECK(cudaMalloc(&d_output, size * sizeof(float)));
+
+    CUDA_CHECK(cudaMemcpy(d_input, input.Datos(), size * sizeof(float), cudaMemcpyHostToDevice));
+
+    int blockSize = 256;
+    int numBlocks = (size + blockSize - 1) / blockSize;
+    DerRELUKernel<<<numBlocks, blockSize>>>(d_input, d_output, size);
+
+    CUDA_CHECK(cudaMemcpy(output.Datos(), d_output, size * sizeof(float), cudaMemcpyDeviceToHost));
+    CUDA_CHECK(cudaFree(d_input));
+    CUDA_CHECK(cudaFree(d_output));
+}
+__global__ void CuadradoKernel(float* data, int size) {
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < size) data[idx] = data[idx] * data[idx];
+}
+
+void Matriz2D::ElementWiseCuadradoCUDA() {
+    float* d_data;  // Puntero a memoria en GPU
+    int size = filas * columnas;
+
+    // 1. Reservar memoria en GPU
+    CUDA_CHECK(cudaMalloc(&d_data, size * sizeof(float)));
+
+    // 2. Copiar datos de CPU a GPU
+    CUDA_CHECK(cudaMemcpy(d_data, datos, size * sizeof(float), cudaMemcpyHostToDevice));
+
+    // 3. Configurar y lanzar el kernel
+    int blockSize = 256;  // Hilos por bloque (óptimo para la mayoría de GPUs)
+    int numBlocks = (size + blockSize - 1) / blockSize;  // Bloques necesarios
+    CuadradoKernel<<<numBlocks, blockSize>>>(d_data, size);
+
+    // 4. Copiar resultados de GPU a CPU
+    CUDA_CHECK(cudaMemcpy(datos, d_data, size * sizeof(float), cudaMemcpyDeviceToHost));
+
+    // 5. Liberar memoria de GPU
+    CUDA_CHECK(cudaFree(d_data));
+}
+
+__global__ void RaizKernel(float* data, int size) {
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < size) data[idx] = sqrtf(data[idx]);
+}
+void Matriz2D::ElementWiseRaizCUDA() {
+    float* d_data;  // Puntero a memoria en GPU
+    int size = filas * columnas;
+
+    // 1. Reservar memoria en GPU
+    CUDA_CHECK(cudaMalloc(&d_data, size * sizeof(float)));
+
+    // 2. Copiar datos de CPU a GPU
+    CUDA_CHECK(cudaMemcpy(d_data, datos, size * sizeof(float), cudaMemcpyHostToDevice));
+
+    // 3. Configurar y lanzar el kernel
+    int blockSize = 256;  // Hilos por bloque (valor óptimo para la mayoría de GPUs)
+    int numBlocks = (size + blockSize - 1) / blockSize;  // Bloques necesarios
+    RaizKernel<<<numBlocks, blockSize>>>(d_data, size);
+
+    // 4. Copiar resultados de GPU a CPU
+    CUDA_CHECK(cudaMemcpy(datos, d_data, size * sizeof(float), cudaMemcpyDeviceToHost));
+
+    // 5. Liberar memoria de GPU
+    CUDA_CHECK(cudaFree(d_data));
+}
